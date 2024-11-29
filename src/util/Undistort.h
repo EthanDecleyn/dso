@@ -63,7 +63,7 @@ private:
 	bool valid;
 };
 
-
+// TAG: UNDISTORTER CLASS
 class Undistort
 {
 public:

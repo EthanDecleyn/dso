@@ -39,8 +39,13 @@ class PixelSelector
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	int makeMaps(
-			const FrameHessian* const fh,
-			float* map_out, float density, int recursionsLeft=1, bool plot=false, float thFactor=1);
+			const FrameHessian* const fh, // input
+			float* map_out, // output (size wG0*hG0) -> If 0 then pixel not selected, if != 0 then point type
+			float density, // input
+			int recursionsLeft=1, // Hint that it is a recursive funtion ;-) 
+			bool plot=false, 
+			float thFactor=1 // Factor by thresholds are mutliplied (seems to be unused)
+		);
 
 	PixelSelector(int w, int h);
 	~PixelSelector();

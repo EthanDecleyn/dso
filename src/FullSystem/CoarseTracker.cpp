@@ -131,7 +131,7 @@ void CoarseTracker::makeK(CalibHessian* HCalib)
 }
 
 
-
+// TAG: Compute pyramid depth map of new KF (After energy optimization)
 void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 {
 	// make coarse tracking templates for latstRef.
@@ -533,6 +533,7 @@ void CoarseTracker::setCoarseTrackingRef(
 	firstCoarseRMSE=-1;
 
 }
+
 bool CoarseTracker::trackNewestCoarse(
 		FrameHessian* newFrameHessian,
 		SE3 &lastToNew_out, AffLight &aff_g2l_out,

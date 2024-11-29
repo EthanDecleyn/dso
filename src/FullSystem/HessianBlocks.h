@@ -138,7 +138,7 @@ struct FrameHessian
 	std::vector<PointHessian*> pointHessians;				// contains all ACTIVE points.
 	std::vector<PointHessian*> pointHessiansMarginalized;	// contains all MARGINALIZED points (= fully marginalized, usually because point went OOB.)
 	std::vector<PointHessian*> pointHessiansOut;		// contains all OUTLIER points (= discarded.).
-	std::vector<ImmaturePoint*> immaturePoints;		// contains all OUTLIER points (= discarded.).
+	std::vector<ImmaturePoint*> immaturePoints;		// contains all OUTLIER points (= discarded.). (Ethan: <- probably a false duplicate, immature points are points to be activated in the current first keyframe)
 
 
 	Mat66 nullspaces_pose;
@@ -265,7 +265,7 @@ struct FrameHessian
 		if(frameID==0)
 		{
 			p.head<3>() = Vec3::Constant(setting_initialTransPrior);
-			p.segment<3>(3) = Vec3::Constant(setting_initialRotPrior);
+			p.segment<3>(3) = Vec3::Constant(setting_initialRotPrior); // https://eigen.tuxfamily.org/dox/group__TutorialBlockOperations.html
 			if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) p.head<6>().setZero();
 
 			p[6] = setting_initialAffAPrior;

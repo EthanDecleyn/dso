@@ -47,7 +47,7 @@ PixelSelector::PixelSelector(int w, int h)
 	currentPotential=3;
 
 
-	gradHist = new int[100*(1+w/32)*(1+h/32)];
+	gradHist = new int[100*(1+w/32)*(1+h/32)]; // Point to the histograms of the 32 by 32 subimages, 100 levels for each subimage + 1 for tracking total number of pixels in subimage
 	ths = new float[(w/32)*(h/32)+100];
 	thsSmoothed = new float[(w/32)*(h/32)+100];
 
@@ -75,39 +75,45 @@ int computeHistQuantil(int* hist, float below)
 }
 
 
+/* 
+ Computes gradient histograms of all 32 by 32 subimages. Histogram contains 100 levels from 0 to 99.
+ Also computes the region threshold (Median + Pre-defined threhsold) for each subimage
+*/
 void PixelSelector::makeHists(const FrameHessian* const fh)
 {
 	gradHistFrame = fh;
-	float * mapmax0 = fh->absSquaredGrad[0];
+	float * mapmax0 = fh->absSquaredGrad[0]; // Pointer to top left pixel grad intensity (0 for the pyramid level 0, aka the original image)
 
 	int w = wG[0];
 	int h = hG[0];
 
-	int w32 = w/32;
-	int h32 = h/32;
+	int w32 = w/32; // Number of columns of subimages
+	int h32 = h/32; // Number of rows of subimages
 	thsStep = w32;
 
+	// Divide the image in 32x32 subimages for threshold computations
 	for(int y=0;y<h32;y++)
 		for(int x=0;x<w32;x++)
 		{
-			float* map0 = mapmax0+32*x+32*y*w;
+			float* map0 = mapmax0+32*x+32*y*w; // Pointer to the intensity of the top left corner of the subimage
 			int* hist0 = gradHist;// + 50*(x+y*w32);
 			memset(hist0,0,sizeof(int)*50);
 
-			for(int j=0;j<32;j++) for(int i=0;i<32;i++)
-			{
-				int it = i+32*x;
-				int jt = j+32*y;
-				if(it>w-2 || jt>h-2 || it<1 || jt<1) continue;
-				int g = sqrtf(map0[i+j*w]);
-				if(g>48) g=48;
-				hist0[g+1]++;
-				hist0[0]++;
+			for(int j=0;j<32;j++) {
+				for(int i=0;i<32;i++) {
+					int it = i+32*x;
+					int jt = j+32*y;
+					if(it>w-2 || jt>h-2 || it<1 || jt<1) continue;
+					int g = sqrtf(map0[i+j*w]); // Norm of the gradient at index (i,j) in the subimage
+					if(g>48) g=48; // Why stop at 48 ? This is wasting half of the allocated space for hist0
+					hist0[g+1]++; // Increase number of pixels in the subimage with gradient g
+					hist0[0]++; // Tracks the total number of pixels
+				}
 			}
-
-			ths[x+y*w32] = computeHistQuantil(hist0,setting_minGradHistCut) + setting_minGradHistAdd;
+			ths[x+y*w32] = computeHistQuantil(hist0,setting_minGradHistCut) + setting_minGradHistAdd; // Median (since minGradHistCut = 0.5) + Threshold
 		}
-
+	
+	// Smoothes out the threshold by convolution with a constant 3 subimages by 3 subimages square (in the domain of the subimages -> square of 96 by 96 pixels for smoothing)
 	for(int y=0;y<h32;y++)
 		for(int x=0;x<w32;x++)
 		{
@@ -139,9 +145,7 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 
 
 }
-int PixelSelector::makeMaps(
-		const FrameHessian* const fh,
-		float* map_out, float density, int recursionsLeft, bool plot, float thFactor)
+int PixelSelector::makeMaps(const FrameHessian* const fh, float* map_out, float density, int recursionsLeft, bool plot, float thFactor)
 {
 	float numHave=0;
 	float numWant=density;
@@ -181,9 +185,10 @@ int PixelSelector::makeMaps(
 		// K / (pot+1)^2, where K is a scene-dependent constant.
 		// we will allow sub-selecting pixels by up to a quotia of 0.25, otherwise we will re-select.
 
+		// Compute thresholds for each 32 by 32 images of current fh (aka current keyframe) (§Point management/step1/paragraph 1)
 		if(fh != gradHistFrame) makeHists(fh);
 
-		// select!
+		// Select the points with adaptative threshold and greater block size (§Point management/step 1/paragraph 2)
 		Eigen::Vector3i n = this->select(fh, map_out,currentPotential, thFactor);
 
 		// sub-select!
@@ -254,7 +259,7 @@ int PixelSelector::makeMaps(
 //			currentPotential,
 //			idealPotential,
 //			100*numHaveSub/(float)(wG[0]*hG[0]));
-	currentPotential = idealPotential;
+	currentPotential = idealPotential; // Potential is the block size (d) for
 
 
 	if(plot)
@@ -292,25 +297,32 @@ int PixelSelector::makeMaps(
 
 
 
-Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
-		float* map_out, int pot, float thFactor)
+Eigen::Vector3i PixelSelector::select(
+	const FrameHessian* const fh,
+	float* map_out, 
+	int pot, // The block size for pixel selection 
+	float thFactor)
 {
 
+	// dI[pixel] is a vector of 3 floats containing [I, dIdx, dIdy]
 	Eigen::Vector3f const * const map0 = fh->dI;
 
+	// Pointers to the squared gradient norms of the 3 first pyramid levels
 	float * mapmax0 = fh->absSquaredGrad[0];
 	float * mapmax1 = fh->absSquaredGrad[1];
 	float * mapmax2 = fh->absSquaredGrad[2];
 
-
+	// Widths at the 3 first pyramid levels
 	int w = wG[0];
 	int w1 = wG[1];
 	int w2 = wG[2];
+
+	// Height of the image 
 	int h = hG[0];
 
-
+	// Half circle centered at 0
 	const Vec2f directions[16] = {
-	         Vec2f(0,    1.0000),
+	         Vec2f(0     ,    1.0000),
 	         Vec2f(0.3827,    0.9239),
 	         Vec2f(0.1951,    0.9808),
 	         Vec2f(0.9239,    0.3827),
@@ -327,74 +339,91 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 	         Vec2f(1.0000,    0.0000),
 	         Vec2f(0.1951,   -0.9808)};
 
+	// Set output to all 0's
 	memset(map_out,0,w*h*sizeof(PixelSelectorStatus));
 
-
-
+	// Down weights the threshold per level of pyramid because we want more selected pixels in higher levels
 	float dw1 = setting_gradDownweightPerLevel;
 	float dw2 = dw1*dw1;
 
 
 	int n3=0, n2=0, n4=0;
-	for(int y4=0;y4<h;y4+=(4*pot)) for(int x4=0;x4<w;x4+=(4*pot))
+	for(int y4=0;y4<h;y4+=(4*pot)) for(int x4=0;x4<w;x4+=(4*pot)) // Divide grid in subgrids 4*pot by 4*pot
 	{
-		int my3 = std::min((4*pot), h-y4);
-		int mx3 = std::min((4*pot), w-x4);
-		int bestIdx4=-1; float bestVal4=0;
-		Vec2f dir4 = directions[randomPattern[n2] & 0xF];
-		for(int y3=0;y3<my3;y3+=(2*pot)) for(int x3=0;x3<mx3;x3+=(2*pot))
+
+		int my3 = std::min((4*pot), h-y4); // Maximum value of local y coordinate in the subgrid
+		int mx3 = std::min((4*pot), w-x4); // Maximum value of local x coordinate in the subgrid
+
+		int bestIdx4=-1; float bestVal4=0; // ??
+		Vec2f dir4 = directions[randomPattern[n2] & 0xF]; // Takes a direction in the half circle at random
+
+		for(int y3=0;y3<my3;y3+=(2*pot)) for(int x3=0;x3<mx3;x3+=(2*pot)) // Divide the subgrids in subsubgrids (2subgrids) of 2*pot by 2*pot
 		{
-			int x34 = x3+x4;
-			int y34 = y3+y4;
-			int my2 = std::min((2*pot), h-y34);
-			int mx2 = std::min((2*pot), w-x34);
-			int bestIdx3=-1; float bestVal3=0;
-			Vec2f dir3 = directions[randomPattern[n2] & 0xF];
-			for(int y2=0;y2<my2;y2+=pot) for(int x2=0;x2<mx2;x2+=pot)
+
+			int x34 = x3+x4; // Left of the 2subgrid
+			int y34 = y3+y4; // Top of the 2subgrid
+			int my2 = std::min((2*pot), h-y34); // Max value of local y coordinate in the 2subgrid
+			int mx2 = std::min((2*pot), w-x34); // Max value of local x coordinate in the 2subgrid
+
+			int bestIdx3=-1; float bestVal3=0; // ??
+			Vec2f dir3 = directions[randomPattern[n2] & 0xF]; // Takes a direction in the half circle at random
+
+			for(int y2=0;y2<my2;y2+=pot) for(int x2=0;x2<mx2;x2+=pot) // Divide the 2subgrids in 3subgrids of pot by pot
 			{
-				int x234 = x2+x34;
-				int y234 = y2+y34;
-				int my1 = std::min(pot, h-y234);
-				int mx1 = std::min(pot, w-x234);
-				int bestIdx2=-1; float bestVal2=0;
-				Vec2f dir2 = directions[randomPattern[n2] & 0xF];
-				for(int y1=0;y1<my1;y1+=1) for(int x1=0;x1<mx1;x1+=1)
+
+				int x234 = x2+x34; // Left of the 3subgrid
+				int y234 = y2+y34; // Top of the 3subgrid
+				int my1 = std::min(pot, h-y234); // Max value of local y coordinate in the 3subgrid
+				int mx1 = std::min(pot, w-x234); // Max value of local x coordinate in the 3subgrid
+
+				int bestIdx2=-1; float bestVal2=0; // ??
+				Vec2f dir2 = directions[randomPattern[n2] & 0xF]; // Takes a direction in the half circle at random
+
+				for(int y1=0;y1<my1;y1+=1) for(int x1=0;x1<mx1;x1+=1) // // Divide the 3subgrids in 4subgrids of 1 by 1
 				{
-					assert(x1+x234 < w);
-					assert(y1+y234 < h);
-					int idx = x1+x234 + w*(y1+y234);
-					int xf = x1+x234;
-					int yf = y1+y234;
+					assert(x1+x234 < w); // If everything was properly done then x coordinates should be within bounds
+					assert(y1+y234 < h); // If everything was properly done then y coordinates should be within bounds
+					
+					int idx = x1+x234 + w*(y1+y234); // Idx in mapmax0 (original image gradient)
+					int xf = x1+x234; // Final x value of the selected pixel
+					int yf = y1+y234; // Final y value of the selected pixel
 
-					if(xf<4 || xf>=w-5 || yf<4 || yf>h-4) continue;
-
-
-					float pixelTH0 = thsSmoothed[(xf>>5) + (yf>>5) * thsStep];
-					float pixelTH1 = pixelTH0*dw1;
-					float pixelTH2 = pixelTH1*dw2;
+					if(xf<4 || xf>=w-5 || yf<4 || yf>h-4) continue; // Pass if too close to border for the circle to fit in
 
 
-					float ag0 = mapmax0[idx];
+					float pixelTH0 = thsSmoothed[(xf>>5) + (yf>>5) * thsStep]; // Use the smoothed threshold for pixel selection (Reminder: "">> 5" divides integer by 2^5=32 and rounds the result down)
+					float pixelTH1 = pixelTH0*dw1; // Downweighted threshold for level 1
+					float pixelTH2 = pixelTH1*dw2; // Downweighted threshold for level 2
+
+
+					float ag0 = mapmax0[idx]; // Squared gradient norm at current pixel in original image
 					if(ag0 > pixelTH0*thFactor)
 					{
-						Vec2f ag0d = map0[idx].tail<2>();
-						float dirNorm = fabsf((float)(ag0d.dot(dir2)));
+						Vec2f ag0d = map0[idx].tail<2>(); // Gets the gradient vector [dIdx, dIdy]
+						float dirNorm = fabsf((float)(ag0d.dot(dir2))); // Get the directional gradient in the randomly selected direction
 						if(!setting_selectDirectionDistribution) dirNorm = ag0;
 
-						if(dirNorm > bestVal2)
-						{ bestVal2 = dirNorm; bestIdx2 = idx; bestIdx3 = -2; bestIdx4 = -2;}
+						if(dirNorm > bestVal2){ // Best direction in the 3subgrids
+							bestVal2 = dirNorm; 
+							bestIdx2 = idx; 
+							bestIdx3 = -2; 
+							bestIdx4 = -2;
+						}
 					}
-					if(bestIdx3==-2) continue;
+					if(bestIdx3==-2) continue; // If it found the best in the 3subgrids then continue
 
-					float ag1 = mapmax1[(int)(xf*0.5f+0.25f) + (int)(yf*0.5f+0.25f)*w1];
+					float ag1 = mapmax1[(int)(xf*0.5f+0.25f) + (int)(yf*0.5f+0.25f)*w1]; // Squared gradient in the first pyramid level
 					if(ag1 > pixelTH1*thFactor)
 					{
 						Vec2f ag0d = map0[idx].tail<2>();
 						float dirNorm = fabsf((float)(ag0d.dot(dir3)));
 						if(!setting_selectDirectionDistribution) dirNorm = ag1;
 
-						if(dirNorm > bestVal3)
-						{ bestVal3 = dirNorm; bestIdx3 = idx; bestIdx4 = -2;}
+						if(dirNorm > bestVal3) { 
+							bestVal3 = dirNorm; 
+							bestIdx3 = idx; 
+							bestIdx4 = -2;
+						}
 					}
 					if(bestIdx4==-2) continue;
 
@@ -405,8 +434,10 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 						float dirNorm = fabsf((float)(ag0d.dot(dir4)));
 						if(!setting_selectDirectionDistribution) dirNorm = ag2;
 
-						if(dirNorm > bestVal4)
-						{ bestVal4 = dirNorm; bestIdx4 = idx; }
+						if(dirNorm > bestVal4) { 
+							bestVal4 = dirNorm; 
+							bestIdx4 = idx; 
+						}
 					}
 				}
 

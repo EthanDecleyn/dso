@@ -308,7 +308,7 @@ private:
 	boost::mutex trackMapSyncMutex;
 	boost::condition_variable trackedFrameSignal;
 	boost::condition_variable mappedFrameSignal;
-	std::deque<FrameHessian*> unmappedTrackedFrames;
+	std::deque<FrameHessian*> unmappedTrackedFrames; // TAG: FRAME STRUCTURE
 	int needNewKFAfter;	// Otherwise, a new KF is *needed that has ID bigger than [needNewKFAfter]*.
 	boost::thread mappingThread;
 	bool runMapping;

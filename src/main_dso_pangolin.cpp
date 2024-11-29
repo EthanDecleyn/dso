@@ -389,7 +389,7 @@ int main( int argc, char** argv )
 	}
 
 
-
+	// TAG: START
 	FullSystem* fullSystem = new FullSystem();
 	fullSystem->setGammaFunction(reader->getPhotometricGamma());
 	fullSystem->linearizeOperation = (playbackSpeed==0);
@@ -416,6 +416,7 @@ int main( int argc, char** argv )
 
 
     // to make MacOS happy: run this in dedicated thread -- and use this one to run the GUI.
+	// TAG: READ IMAGES AND LOGS SOME INFORMATION TO STDOUT
     std::thread runthread([&]() {
         std::vector<int> idsToPlay;
         std::vector<double> timesToPlayAt;
@@ -488,7 +489,8 @@ int main( int argc, char** argv )
             }
 
 
-
+			// TAG: ADD NEW IMAGE TO BE PROCESSED BY MAPPING LOOP
+			// Mutex managment is done inside fullSystem->addActiveFrame
             if(!skipFrame) fullSystem->addActiveFrame(img, i);
 
 

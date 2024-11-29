@@ -48,17 +48,16 @@ public:
 	CoarseTracker(int w, int h);
 	~CoarseTracker();
 
-	bool trackNewestCoarse(
-			FrameHessian* newFrameHessian,
-			SE3 &lastToNew_out, AffLight &aff_g2l_out,
-			int coarsestLvl, Vec5 minResForAbort,
-			IOWrap::Output3DWrapper* wrap=0);
+	bool trackNewestCoarse(FrameHessian* newFrameHessian, 
+					SE3 &lastToNew_out, 
+					AffLight &aff_g2l_out, 
+					int coarsestLvl, 
+					Vec5 minResForAbort, 
+					IOWrap::Output3DWrapper* wrap=0);
 
-	void setCoarseTrackingRef(
-			std::vector<FrameHessian*> frameHessians);
+	void setCoarseTrackingRef(std::vector<FrameHessian*> frameHessians);
 
-	void makeK(
-			CalibHessian* HCalib);
+	void makeK(CalibHessian* HCalib);
 
 	bool debugPrint, debugPlot;
 

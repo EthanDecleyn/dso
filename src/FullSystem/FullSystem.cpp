@@ -164,6 +164,7 @@ FullSystem::FullSystem()
 
 	linearizeOperation=true;
 	runMapping=true;
+	// TAG: LAUNCH MAIN LOOP 
 	mappingThread = boost::thread(&FullSystem::mappingLoop, this);
 	lastRefStopID=0;
 
@@ -213,6 +214,7 @@ void FullSystem::setOriginalCalib(const VecXf &originalCalib, int originalW, int
 
 }
 
+// TAG: Set Hcalib
 void FullSystem::setGammaFunction(float* BInv)
 {
 	if(BInv==0) return;
@@ -798,7 +800,7 @@ void FullSystem::flagPointsForRemoval()
 
 }
 
-
+// TAG: IMAGES ENTRYPOINT - ADDED FROM THE READLOG THREAD
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 {
 
@@ -854,12 +856,17 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		if(coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID)
 		{
 			boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
-			CoarseTracker* tmp = coarseTracker; coarseTracker=coarseTracker_forNewKF; coarseTracker_forNewKF=tmp;
+			CoarseTracker* tmp = coarseTracker; 
+			coarseTracker=coarseTracker_forNewKF; 
+			coarseTracker_forNewKF=tmp;
 		}
 
 
 		Vec4 tres = trackNewCoarse(fh);
-		if(!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || !std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))
+		if( !std::isfinite((double)tres[0]) || 
+			!std::isfinite((double)tres[1]) || 
+			!std::isfinite((double)tres[2]) || 
+			!std::isfinite((double)tres[3]))
         {
             printf("Initial Tracking failed: LOST!\n");
 			isLost=true;
@@ -942,6 +949,7 @@ void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 	}
 }
 
+// TAG: MAIN LOOP FUNCTION (BACKEND - FUNCTION OF MAPPING THREAD)
 void FullSystem::mappingLoop()
 {
 	boost::unique_lock<boost::mutex> lock(trackMapSyncMutex);
@@ -951,7 +959,7 @@ void FullSystem::mappingLoop()
 		while(unmappedTrackedFrames.size()==0)
 		{
 			trackedFrameSignal.wait(lock);
-			if(!runMapping) return;
+			if(!runMapping) return; // TAG: CLEAN EXIT
 		}
 
 		FrameHessian* fh = unmappedTrackedFrames.front();
@@ -1033,7 +1041,7 @@ void FullSystem::makeNonKeyFrame( FrameHessian* fh)
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 	}
-
+	// TAG: CANDIDATE POINT TRACING 
 	traceNewCoarse(fh);
 	delete fh;
 }
@@ -1048,6 +1056,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 	}
 
+	// TAG: CANDIDATE POINT TRACING 
 	traceNewCoarse(fh);
 
 	boost::unique_lock<boost::mutex> lock(mapMutex);
@@ -1088,6 +1097,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 	// =========================== Activate Points (& flag for marginalization). =========================
+	// TAG: ACTIVATE "OLD" POINTS
 	activatePointsMT();
 	ef->makeIDX();
 
@@ -1135,7 +1145,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 
-
+	// TAG: PUT NEW KF IN COARSE TRACKER, SWAPPING WILL MAKE IT THE ONE USED BY FRONT END
 	{
 		boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
 		coarseTracker_forNewKF->makeK(&Hcalib);
@@ -1168,6 +1178,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 	// =========================== add new Immature points & new residuals =========================
+	// TAG: CANDIDATE POINT SELECTION IN THE NEW KEYFRAME
 	makeNewTraces(fh, 0);
 
 
@@ -1283,6 +1294,9 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	printf("INITIALIZE FROM INITIALIZER (%d pts)!\n", (int)firstFrame->pointHessians.size());
 }
 
+/*
+ Select the new point candidates (aka ImmaturePoints) in the new keyframe
+*/
 void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 {
 	pixelSelector->allowFast = true;

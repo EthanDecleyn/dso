@@ -90,6 +90,8 @@ void FullSystem::applyRes_Reductor(bool copyJacobians, int min, int max, Vec10* 
 	for(int k=min;k<max;k++)
 		activeResiduals[k]->applyRes(true);
 }
+
+// TAG: Update the threshold such as to keep 70% (setting_frameEnergyTHN=0.7) of the residuals
 void FullSystem::setNewFrameEnergyTH()
 {
 
@@ -421,7 +423,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 	activeResiduals.clear();
 	int numPoints = 0;
-	int numLRes = 0;
+	int numLRes = 0; // Number of linearized residuals
 	for(FrameHessian* fh : frameHessians)
 		for(PointHessian* ph : fh->pointHessians)
 		{
@@ -429,7 +431,7 @@ float FullSystem::optimize(int mnumOptIts)
 			{
 				if(!r->efResidual->isLinearized)
 				{
-					activeResiduals.push_back(r);
+					activeResiduals.push_back(r); // Active residuals are the non-linearized residuals
 					r->resetOOB();
 				}
 				else

@@ -170,16 +170,16 @@ template void AccumulatedTopHessianSSE::addPoint<2>(EFPoint* p, EnergyFunctional
 
 void AccumulatedTopHessianSSE::stitchDouble(MatXX &H, VecX &b, EnergyFunctional const * const EF, bool usePrior, bool useDelta, int tid)
 {
-	H = MatXX::Zero(nframes[tid]*8+CPARS, nframes[tid]*8+CPARS);
-	b = VecX::Zero(nframes[tid]*8+CPARS);
+	H = MatXX::Zero(nframes[tid]*8+CPARS, nframes[tid]*8+CPARS); // Initializes the hessian matrix to size (Number of KF * Number of params per KF + Number of camera parameters)
+	b = VecX::Zero(nframes[tid]*8+CPARS); // Initializes the RHS of Gauss-Newton to size (Number of KF * Number of params per KF + Number of camera parameters)
 
 
 	for(int h=0;h<nframes[tid];h++)
 		for(int t=0;t<nframes[tid];t++)
 		{
-			int hIdx = CPARS+h*8;
-			int tIdx = CPARS+t*8;
-			int aidx = h+nframes[tid]*t;
+			int hIdx = CPARS+h*8; // Columns idx
+			int tIdx = CPARS+t*8; // Rows idx
+			int aidx = h+nframes[tid]*t; // vectorized matrix index
 
 
 

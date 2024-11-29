@@ -35,20 +35,25 @@ struct RawResidualJacobian
 	// ================== new structure: save independently =============.
 	VecNRf resF;
 
+	// Jacobian wrt the geometric variables ?
 	// the two rows of d[x,y]/d[xi].
 	Vec6f Jpdxi[2];			// 2x6
 
+
+	// Jacobian wrt the camera parameters
 	// the two rows of d[x,y]/d[C].
 	VecCf Jpdc[2];			// 2x4
 
 	// the two rows of d[x,y]/d[idepth].
 	Vec2f Jpdd;				// 2x1
 
+	// Derivative of the residual wrt to the point position
 	// the two columns of d[r]/d[x,y].
-	VecNRf JIdx[2];			// 9x2
+	VecNRf JIdx[2];			// 8x2
 
+	// Derivative of the residual wrt to the expusure time parameters
 	// = the two columns of d[r] / d[ab]
-	VecNRf JabF[2];			// 9x2
+	VecNRf JabF[2];			// 8x2
 
 
 	// = JIdx^T * JIdx (inner product). Only as a shorthand.

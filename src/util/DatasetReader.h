@@ -102,6 +102,7 @@ struct PrepImageItem
 class ImageFolderReader
 {
 public:
+	// TAG: IMAGE READER FUNCTION
 	ImageFolderReader(std::string path, std::string calibFile, std::string gammaFile, std::string vignetteFile)
 	{
 		this->path = path;
@@ -290,7 +291,7 @@ private:
 		delete minimg;
 		return ret2;
 	}
-
+	// TAG: LOAD TIME STAMPS FUNCTION
 	inline void loadTimestamps()
 	{
 		std::ifstream tr;
